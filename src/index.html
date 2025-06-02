@@ -1,9 +1,185 @@
+<!--Note: Personally I would've prefered to break things up into individual files, but I wanted to follow exact instructions-->
 <head>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
-    <link rel="stylesheet" href="index.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    <link href='https://fonts.googleapis.com/css?family=Poppins' rel='stylesheet'>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <style>
+        body {
+            font-family: 'Poppins';font-size: 22px;
+        }
+
+        .fa-tree {
+            color:green;
+        }
+
+        .container {
+            height: calc(100dvh - 2%);
+
+            #map { 
+                height: 100%; 
+            }
+        
+            .tf-control-center {
+                background-color: white;
+                z-index: 999;
+                position: fixed;
+                top: 0;
+                right: 0;
+                width: 30dvw;
+                height: 100dvh;
+                box-shadow: -5px -1px 12px #aaaa;
+            
+                .tf-container {
+                    padding: 10px;
+                    text-align: center;
+                
+                    .tf-header {
+                        font-size: 48px;
+                    }
+                
+                    .tf-body {
+                        text-align: left;
+                        font-size: medium;
+                    }
+                }
+            }
+        
+            .tf-selected-pane {
+                transition: all 0.5s ease-in;
+                background-color: white;
+                z-index: 999;
+                position: fixed;
+                border-radius: 8px;
+                bottom: 0;
+                left: 0;
+                margin: 2%;
+                padding: 10px;
+                font-size: medium;
+                box-shadow: -5px -1px 12px #aaaa;
+            
+                h2 {
+                    margin: 0;
+                }
+            }
+        }
+    </style>
 </head>
 
-<div id="map"></div>
+<!--HTML Code-->
+<section class="container">
+    <div id="map"></div>
+    <aside class="tf-control-center">
+        <section class="tf-container">
+            <h1 class="tf-header">
+                Tree Finder 
+                <i class="fa fa-tree" style="font-size:48px;"></i>
+            </h1>
+            <div id="content" class="tf-body">
+                <p>Click on the map to see trees in your area and your distance from each one.</p>
+            </div>
+        </section>
+    </aside>
+    <div class="tf-selected-pane">
+        <h2>
+            Selected Trees
+            <i class="fa fa-tree"></i>
+            <span id="selectedTrees">: 0</span>
+        </h2>
+        
+    </div>
+</section>
 
-<script src="index.js"></script>
+<!--JavaScript Code-->
+<script type="text/javascript">
+    // Created a model for the trees
+    class Tree {
+        constructor(marker = [], species = "", plantingYear = 0, location = []){
+            this.marker = marker,
+            this.species = species,
+            this.plantingYear = plantingYear,
+            this.location = location
+        }
+    }
+    const map = L.map('map').setView([51.5296, -0.1538], 16);
+    const markerGroup = new L.layerGroup();
+    const circleRadius = 100;
+    const date = new Date();
+    const year = date.getFullYear();
+    var circle = new L.circle();
+    var trees = [];
+    // Custom icons
+    const defaultIcon = L.divIcon({
+        html: '<i class="fa fa-map-marker fa-4x"></i>',
+        iconSize: [20, 20],
+        className: 'tf-icon'
+    });
+    const treeIcon = L.divIcon({
+        html: '<i class="fa fa-tree fa-4x"></i>',
+        iconSize: [20, 20],
+        className: 'tf-icon'
+    });
+    // Creates an array of trees.
+    trees.push(
+        new Tree(generatePoints(51.52961, -0.15381), "Oak", 1950),
+        new Tree(generatePoints(51.52962, -0.15382), "Pecan", 1978),
+        new Tree(generatePoints(51.52963, -0.15383), "Pine", 2003),
+        new Tree(generatePoints(51.52964, -0.15384), "Magnolia", 2012),
+        new Tree(generatePoints(51.52965, -0.15385), "Walnut", 2009)
+    );
+    trees.forEach(tree => {
+        tree.location = new L.marker(tree.marker, { icon: defaultIcon }).addTo(map);
+        tree.location.bindPopup(`<b>${tree.species}</b> <br><b>Age: </b>${year - tree.plantingYear} <br>`);
+        tree.location.addTo(markerGroup);
+    });
+    // Creates the map image
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">Zaiquise Marshall | Tree Finder</a>'
+    }).addTo(map);
+    // Adds a click event to the map
+    map.on("click", (event) => {
+        let lat = event.latlng.lat;
+        let long = event.latlng.lng;
+        let selectCount = 0;
+    
+        // Removes the existing Highlighted radius.
+        map.removeLayer(circle);
+    
+        // Creates the new highlighted radius.
+        circle = new L.circle([lat, long], {
+            color: 'green',
+            fillColor: '#008000',
+            fillOpacity: 0.5,
+            radius: circleRadius
+        }).addTo(map);
+    
+        // Highlights the selected trees.
+        markerGroup.eachLayer((marker) => {
+            if (circle.getLatLng().distanceTo(marker.getLatLng()) <= circle.getRadius()) {
+                marker.setIcon(treeIcon);
+                selectCount++;
+            } else {
+                marker.setIcon(defaultIcon); 
+            }
+        });
+    
+        // Extra: Adds the number of selected trees to the UI for better observability. 
+        document.getElementById('selectedTrees').innerHTML = `: ${selectCount}`;
+    
+        // Adds the trees to the map and show distance to each in meters.
+        document.getElementById('content').innerHTML = '';
+        trees.forEach(t => {
+            document.getElementById('content').innerHTML += 
+                `<p><i class="fa fa-tree"></i> The <b>${t.species}</b> tree is ${Math.round(t.location.getLatLng().distanceTo(circle.getLatLng()))} meters away from you.</p>`;
+        });   
+    });
+    // Generates random points within a circle.
+    function generatePoints(circleLat, circleLong) {
+      const angle = Math.random() * 2 * Math.PI;
+      const distance = Math.sqrt(Math.random()) * circleRadius;
+      const lat = circleLat + (distance / 111320) * Math.cos(angle);
+      const lng = circleLong + (distance / (111320 * Math.cos(circleLat * Math.PI / 180))) * Math.sin(angle);
+      return [lat, lng];
+    }
+</script>
